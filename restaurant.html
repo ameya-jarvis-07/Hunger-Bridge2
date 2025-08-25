@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Restaurant - Hunger Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .login-card { max-width:400px; margin:3rem auto; background:white; padding:2rem; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+    .login-card input { width:100%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:6px; }
+    .login-card button { width:100%; background:#2563eb; color:white; padding:10px; margin-top:12px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; }
+    .login-card button:hover { opacity:0.9; }
+    .input-error { border-color: #dc2626 !important; box-shadow: 0 0 0 1.5px #dc2626; }
+    .error-message { color: #dc2626; font-size: 14px; margin-top: -4px; margin-bottom: 8px; text-align: left; padding-left: 2px; min-height: 18px; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="restaurant-login">
+    <div class="login-card">
+      <h2 class="text-2xl font-bold mb-4 text-center">Restaurant Login</h2>
+      <input id="rest-name" type="text" placeholder="Restaurant Name" required>
+      <input id="rest-address" type="text" placeholder="Address" required>
+      <input id="rest-contact" type="text" placeholder="Contact No." required>
+      <button id="rest-login-btn">Continue</button>
+    </div>
+  </div>
+  <div id="restaurant-dashboard" class="hidden">
+    <header style="background:#e17055;color:white;text-align:center;padding:20px;">
+      <h1>🍴 Restaurant Dashboard</h1>
+      <p id="restaurant-user-info" class="mt-2"></p>
+    </header>
+    <div class="container p-6">
+      <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+        <h2 class="text-lg font-semibold mb-3">Add Surplus Food</h2>
+        <input id="food-item" type="text" placeholder="Food Item" class="border rounded p-2 w-full mb-3">
+        <div class="flex gap-2 mb-3">
+          <input id="food-qty" type="number" placeholder="Quantity" class="flex-1 border p-2 rounded">
+          <select id="food-unit" class="border p-2 rounded">
+            <option value="kg">kg</option>
+            <option value="units">units</option>
+          </select>
+        </div>
+        <button id="add-food" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg w-full">➕ Add Food</button>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+        <h2 class="text-lg font-semibold mb-3">Food Donations History</h2>
+        <ul id="restaurant-history"></ul>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-md">
+        <h3 class="text-xl font-semibold mb-3">🌱 Impact Summary</h3>
+        <p>Total Meals Saved: <span id="total-meals">0</span></p>
+        <p>Estimated CO₂ Reduced (kg): <span id="total-co2">0</span></p>
+        <canvas id="impactChart" style="max-width:600px;margin-top:20px;"></canvas>
+      </div>
+      <button id="map" class="bg-blue-500 hover:bg-light-600 text-white font-bold rounded-lg w-full" style="max-width: 200px;">MAP</button> 
+     </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // --- Restaurant login validation ---
+    function showError(inputId, message) {
+      const input = document.getElementById(inputId);
+      input.classList.add("input-error");
+      let err = input.nextElementSibling;
+      if (!err || !err.classList.contains("error-message")) {
+        err = document.createElement("div");
+        err.className = "error-message";
+        input.parentNode.insertBefore(err, input.nextSibling);
+      }
+      err.textContent = message;
+    }
+    function clearError(inputId) {
+      const input = document.getElementById(inputId);
+      input.classList.remove("input-error");
+      let err = input.nextElementSibling;
+      if (err && err.classList.contains("error-message")) {
+        err.textContent = "";
+      }
+    }
+    ["rest-name", "rest-address", "rest-contact"].forEach(id => {
+      document.getElementById(id).addEventListener("input", () => clearError(id));
+    });
+    let currentUser = {};
+    document.getElementById("rest-login-btn").addEventListener("click", () => {
+      let valid = true;
+      const name = document.getElementById("rest-name").value.trim();
+      const address = document.getElementById("rest-address").value.trim();
+      const contact = document.getElementById("rest-contact").value.trim();
+      if (!name) { showError("rest-name", "Please fill in Restaurant Name."); valid = false; }
+      if (!address) { showError("rest-address", "Please fill in Address."); valid = false; }
+      if (!contact) { showError("rest-contact", "Please fill in Contact No."); valid = false; }
+      if (!valid) return;
+      currentUser = { name, address, contact, type: "restaurant" };
+      document.getElementById("restaurant-user-info").textContent = `${currentUser.name}, ${currentUser.address}, ${currentUser.contact}`;
+      document.getElementById("restaurant-login").classList.add("hidden");
+      document.getElementById("restaurant-dashboard").classList.remove("hidden");
+      renderRestaurantHistory();
+      calculateImpact();
+    });
+
+    // --- Dashboard logic ---
+    let foodListings = JSON.parse(localStorage.getItem("foodListings") || "[]");
+    function isValidQuantity(qty) {
+      return /^\d+(\.\d+)?$/.test(qty) && parseFloat(qty) > 0;
+    }
+    function renderRestaurantHistory() {
+      const ul = document.getElementById("restaurant-history");
+      ul.innerHTML = "";
+      foodListings.forEach(f => {
+        const li = document.createElement("li");
+        li.textContent = `${f.qty} ${f.unit || "kg"} ${f.item} → ${f.status === "available" ? "Available" : "Claimed by NGO"}`;
+        ul.appendChild(li);
+      });
+    }
+    function calculateImpact() {
+      const totalMeals = foodListings.length;
+      const totalCO2 = totalMeals * 2.5;
+      document.getElementById("total-meals").textContent = totalMeals;
+      document.getElementById("total-co2").textContent = totalCO2.toFixed(1);
+      const ctx = document.getElementById("impactChart").getContext("2d");
+      if (window.impactChart) window.impactChart.destroy();
+      window.impactChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ["Meals Saved", "CO₂ Reduced"],
+          datasets: [{
+            label: "Impact",
+            data: [totalMeals, totalCO2],
+            backgroundColor: ["#2ecc71", "#f39c12"]
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+    document.getElementById("add-food").addEventListener("click", () => {
+      const item = document.getElementById("food-item").value.trim();
+      const qty = document.getElementById("food-qty").value.trim();
+      const unit = document.getElementById("food-unit").value;
+      if (!item || !isValidQuantity(qty)) return alert("Please enter a valid quantity (positive number)");
+      foodListings.push({ item, qty, unit, status: "available", owner: currentUser.name });
+      localStorage.setItem("foodListings", JSON.stringify(foodListings));
+      renderRestaurantHistory();
+      document.getElementById("food-item").value = "";
+      document.getElementById("food-qty").value = "";
+      calculateImpact();
+    });
+    document.getElementById("map").addEventListener("click", function() {
+      window.open("https://08de84fe-93f2-45a6-a4fa-74b3c3590cbf-00-ecawm43nwxci.spock.replit.dev/", "_blank");
+    });
+  </script>
+</body>
+</html>

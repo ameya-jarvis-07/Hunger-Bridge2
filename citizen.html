@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Citizen - Hunger Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .login-card { max-width:400px; margin:3rem auto; background:white; padding:2rem; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+    .login-card input { width:100%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:6px; }
+    .login-card button { width:48%; background:#2563eb; color:white; padding:10px; margin-top:12px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; }
+    .login-card button:hover { opacity:0.9; }
+    .input-error { border-color: #dc2626 !important; box-shadow: 0 0 0 1.5px #dc2626; }
+    .error-message { color: #dc2626; font-size: 14px; margin-top: -4px; margin-bottom: 8px; text-align: left; padding-left: 2px; min-height: 18px; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="citizen-login">
+    <div class="login-card">
+      <h2 class="text-2xl font-bold mb-4 text-center">Citizen Login</h2>
+      <input id="citizen-name" type="text" placeholder="Your Name" required>
+      <input id="citizen-address" type="text" placeholder="Address" required>
+      <input id="citizen-contact" type="text" placeholder="Contact No." required>
+      <div class="flex justify-between">
+        <button id="citizen-donator-btn">Donator</button>
+        <button id="citizen-suggester-btn">Suggester</button>
+      </div>
+    </div>
+  </div>
+  <div id="citizen-dashboard" class="hidden">
+    <header style="background:#f39c12;color:white;text-align:center;padding:20px;">
+      <h1>🧑 Citizen Dashboard</h1>
+      <p id="citizen-user-info" class="mt-2"></p>
+    </header>
+    <div class="container p-6">
+      <div id="citizen-donator-section" class="hidden">
+        <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+          <h2 class="text-lg font-semibold mb-3">Add Food to Donate</h2>
+          <input id="citizen-food-item" type="text" placeholder="Food Item" class="border rounded p-2 w-full mb-3">
+          <div class="flex gap-2 mb-3">
+            <input id="citizen-food-qty" type="number" placeholder="Quantity" step="0.5" min="0.5" class="flex-1 border rounded p-2">
+            <select id="citizen-food-unit" class="border rounded p-2">
+              <option value="kg">kg</option>
+              <option value="units">units</option>
+            </select>
+          </div>
+          <button id="citizen-add-food" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg w-full">➕ Add Food</button>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-md">
+          <h2 class="text-lg font-semibold mb-3">My Donations</h2>
+          <ul id="citizen-history"></ul>
+        </div>
+      </div>
+      <div id="citizen-suggester-section" class="hidden">
+        <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+          <h2 class="text-lg font-semibold mb-3">Suggest an NGO Location</h2>
+          <input id="suggest-ngo-name" type="text" placeholder="NGO Name" class="border rounded p-2 w-full mb-3">
+          <input id="suggest-ngo-location" type="text" placeholder="Location" class="border rounded p-2 w-full mb-3">
+          <button id="submit-suggestion" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg w-full">📍 Submit Suggestion</button>
+        </div>
+        <div class="bg-white p-6 rounded-xl shadow-md">
+          <h2 class="text-lg font-semibold mb-3">My Suggestions</h2>
+          <ul id="citizen-suggestions"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    function showError(inputId, message) {
+      const input = document.getElementById(inputId);
+      input.classList.add("input-error");
+      let err = input.nextElementSibling;
+      if (!err || !err.classList.contains("error-message")) {
+        err = document.createElement("div");
+        err.className = "error-message";
+        input.parentNode.insertBefore(err, input.nextSibling);
+      }
+      err.textContent = message;
+    }
+    function clearError(inputId) {
+      const input = document.getElementById(inputId);
+      input.classList.remove("input-error");
+      let err = input.nextElementSibling;
+      if (err && err.classList.contains("error-message")) {
+        err.textContent = "";
+      }
+    }
+    ["citizen-name", "citizen-address", "citizen-contact"].forEach(id => {
+      document.getElementById(id).addEventListener("input", () => clearError(id));
+    });
+    let currentUser = {};
+    document.getElementById("citizen-donator-btn").addEventListener("click", () => {
+      let valid = true;
+      const name = document.getElementById("citizen-name").value.trim();
+      const address = document.getElementById("citizen-address").value.trim();
+      const contact = document.getElementById("citizen-contact").value.trim();
+      if (!name) { showError("citizen-name", "Please fill in Your Name."); valid = false; }
+      if (!address) { showError("citizen-address", "Please fill in Address."); valid = false; }
+      if (!contact) { showError("citizen-contact", "Please fill in Contact No"); valid = false; }
+      if (!valid) return;
+      currentUser = { name, address, contact, type: "citizen-donator" };
+      document.getElementById("citizen-user-info").textContent = `${currentUser.name}, ${currentUser.address}, ${currentUser.contact}`;
+      document.getElementById("citizen-login").classList.add("hidden");
+      document.getElementById("citizen-dashboard").classList.remove("hidden");
+      document.getElementById("citizen-donator-section").classList.remove("hidden");
+      document.getElementById("citizen-suggester-section").classList.add("hidden");
+      renderCitizenHistory();
+    });
+    document.getElementById("citizen-suggester-btn").addEventListener("click", () => {
+      let valid = true;
+      const name = document.getElementById("citizen-name").value.trim();
+      const address = document.getElementById("citizen-address").value.trim();
+      const contact = document.getElementById("citizen-contact").value.trim();
+      if (!name) { showError("citizen-name", "Please fill in Your Name."); valid = false; }
+      if (!address) { showError("citizen-address", "Please fill in Address."); valid = false; }
+      if (!contact) { showError("citizen-contact", "Please fill in Contact No"); valid = false; }
+      if (!valid) return;
+      currentUser = { name, address, contact, type: "citizen-suggester" };
+      document.getElementById("citizen-user-info").textContent = `${currentUser.name}, ${currentUser.address}, ${currentUser.contact}`;
+      document.getElementById("citizen-login").classList.add("hidden");
+      document.getElementById("citizen-dashboard").classList.remove("hidden");
+      document.getElementById("citizen-suggester-section").classList.remove("hidden");
+      document.getElementById("citizen-donator-section").classList.add("hidden");
+      renderSuggestions();
+    });
+    let foodListings = JSON.parse(localStorage.getItem("foodListings") || "[]");
+    let suggestions = JSON.parse(localStorage.getItem("suggestions") || "[]");
+    function isValidQuantity(qty) {
+      return /^\d+(\.\d+)?$/.test(qty) && parseFloat(qty) > 0;
+    }
+    function renderCitizenHistory() {
+      const ul = document.getElementById("citizen-history");
+      ul.innerHTML = "";
+      foodListings.filter(f => f.owner === currentUser.name).forEach(f => {
+        const li = document.createElement("li");
+        li.textContent = `${f.qty} ${f.unit || "kg"} ${f.item} → ${f.status}`;
+        ul.appendChild(li);
+      });
+    }
+    function renderSuggestions() {
+      const ulCitizen = document.getElementById("citizen-suggestions");
+      ulCitizen.innerHTML = "";
+      suggestions.filter(s => s.owner === currentUser.name).forEach(s => {
+        const li = document.createElement("li");
+        li.textContent = `${s.name} - ${s.location}`;
+        ulCitizen.appendChild(li);
+      });
+    }
+    document.getElementById("citizen-add-food").addEventListener("click", () => {
+      const item = document.getElementById("citizen-food-item").value.trim();
+      const qty = document.getElementById("citizen-food-qty").value.trim();
+      const unit = document.getElementById("citizen-food-unit").value;
+      if (!item || !isValidQuantity(qty)) return alert("Please enter a valid quantity (positive number)");
+      foodListings.push({ item, qty, unit, status: "available", owner: currentUser.name });
+      localStorage.setItem("foodListings", JSON.stringify(foodListings));
+      renderCitizenHistory();
+      document.getElementById("citizen-food-item").value = "";
+      document.getElementById("citizen-food-qty").value = "";
+    });
+    document.getElementById("submit-suggestion").addEventListener("click", () => {
+      const name = document.getElementById("suggest-ngo-name").value.trim();
+      const location = document.getElementById("suggest-ngo-location").value.trim();
+      if (!name || !location) return;
+      suggestions.push({ name, location, owner: currentUser.name });
+      localStorage.setItem("suggestions", JSON.stringify(suggestions));
+      renderSuggestions();
+      document.getElementById("suggest-ngo-name").value = "";
+      document.getElementById("suggest-ngo-location").value = "";
+    });
+  </script>
+</body>
+</html>

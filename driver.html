@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Driver - Hunger Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .login-box { background:white;padding:30px;border-radius:15px;box-shadow:0 4px 12px rgba(0,0,0,0.1);width:320px;text-align:center;margin:40px auto; }
+    .login-box input { width:100%;padding:12px;margin:10px 0;border:1px solid #ddd;border-radius:10px;font-size:14px; }
+    .login-box button { width:100%;padding:12px;background:#ff9966;border:none;border-radius:10px;color:white;font-size:16px;cursor:pointer;transition:0.3s; }
+    .input-error { border-color: #dc2626 !important; box-shadow: 0 0 0 1.5px #dc2626; }
+    .error-message { color: #dc2626; font-size: 14px; margin-top: -4px; margin-bottom: 8px; text-align: left; padding-left: 2px; min-height: 18px; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="driver-login">
+    <div class="login-box">
+      <h2 style="margin-bottom:20px;color:#444;">Driver Login</h2>
+      <form id="driver-login-form">
+        <input id="driver-name" type="text" placeholder="Full Name" required>
+        <input id="driver-phone" type="tel" placeholder="Phone Number" required>
+        <button type="submit">Login</button>
+      </form>
+    </div>
+  </div>
+  <div id="driver-dashboard" class="hidden">
+    <header style="background:#ff9966;color:white;padding:15px;text-align:center;font-size:22px;font-weight:bold;">
+      Driver Dashboard
+    </header>
+    <div class="container" style="padding:20px;">
+      <div id="driver-deliveries"></div>
+      <p id="no-deliveries" style="color:#888;text-align:center;margin-top:40px;">No deliveries assigned yet. Please wait for NGO to accept food.</p>
+    </div>
+  </div>
+  <script>
+    // --- Validation helpers ---
+    function showError(inputId, message) {
+      const input = document.getElementById(inputId);
+      input.classList.add("input-error");
+      let err = input.nextElementSibling;
+      if (!err || !err.classList.contains("error-message")) {
+        err = document.createElement("div");
+        err.className = "error-message";
+        input.parentNode.insertBefore(err, input.nextSibling);
+      }
+      err.textContent = message;
+    }
+    function clearError(inputId) {
+      const input = document.getElementById(inputId);
+      input.classList.remove("input-error");
+      let err = input.nextElementSibling;
+      if (err && err.classList.contains("error-message")) {
+        err.textContent = "";
+      }
+    }
+    ["driver-name", "driver-phone"].forEach(id => {
+      document.getElementById(id).addEventListener("input", () => clearError(id));
+    });
+
+    let currentUser = {};
+
+    document.getElementById("driver-login-form").addEventListener("submit", function(event) {
+      event.preventDefault();
+      let valid = true;
+      const name = document.getElementById("driver-name").value.trim();
+      const phone = document.getElementById("driver-phone").value.trim();
+      if (!name) { showError("driver-name", "Please fill in Full Name."); valid = false; }
+      if (!phone) { showError("driver-phone", "Please fill in Phone Number."); valid = false; }
+      if (!valid) return;
+      currentUser = { name, phone, type: "driver" };
+      document.getElementById("driver-login").classList.add("hidden");
+      document.getElementById("driver-dashboard").classList.remove("hidden");
+      renderDriverDeliveries();
+    });
+
+    function renderDriverDeliveries() {
+      const deliveriesDiv = document.getElementById("driver-deliveries");
+      const noDeliveries = document.getElementById("no-deliveries");
+      deliveriesDiv.innerHTML = "";
+
+      let deliveries = JSON.parse(localStorage.getItem("driverDeliveries") || "[]");
+      let foodListings = JSON.parse(localStorage.getItem("foodListings") || "[]");
+
+      // Only show deliveries for food that is still claimed and exists
+      deliveries = deliveries.filter(d =>
+        foodListings.some(f =>
+          `${f.qty} ${f.unit} ${f.item}` === d.food && f.status === "claimed"
+        )
+      );
+      // Save filtered deliveries back to localStorage
+      localStorage.setItem("driverDeliveries", JSON.stringify(deliveries));
+
+      if (deliveries.length === 0) {
+        noDeliveries.style.display = "block";
+        return;
+      }
+      noDeliveries.style.display = "none";
+      deliveries.forEach((d, idx) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style = "background:white;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.1);margin-bottom:20px;padding:20px;";
+        card.innerHTML = `
+          <h3 style="margin:0;color:#444;">Pickup from: ${d.pickup}</h3>
+          <p style="margin:8px 0;color:#666;"><strong>Food:</strong> <span class="food-text">${d.food}</span></p>
+          <p style="margin:8px 0;color:#666;"><strong>Deliver to:</strong> ${d.deliverTo}</p>
+          <button class="btn accept" onclick="acceptDelivery(this)" style="padding:10px 15px;border:none;border-radius:8px;margin-right:10px;cursor:pointer;font-size:14px;background:#66cc99;color:white;">Accept</button>
+          <button class="btn delivered" onclick="markDelivered(this)" disabled style="padding:10px 15px;border:none;border-radius:8px;cursor:pointer;font-size:14px;background:#6699cc;color:white;">Mark Delivered</button>
+        `;
+        deliveriesDiv.appendChild(card);
+      });
+    }
+
+    function acceptDelivery(button) {
+      button.disabled = true;
+      button.innerText = "Accepted";
+      let deliveredBtn = button.nextElementSibling;
+      deliveredBtn.disabled = false;
+    }
+
+    function markDelivered(button) {
+      button.disabled = true;
+      button.innerText = "Delivered ✅";
+      button.previousElementSibling.innerText = "Accepted";
+      // Remove this delivery from localStorage
+      const card = button.closest('.card');
+      const foodText = card.querySelector('.food-text').textContent.trim();
+      let deliveries = JSON.parse(localStorage.getItem("driverDeliveries") || "[]");
+      deliveries = deliveries.filter(d => d.food !== foodText);
+      localStorage.setItem("driverDeliveries", JSON.stringify(deliveries));
+      renderDriverDeliveries();
+    }
+
+    // Listen for storage changes (real-time updates)
+    window.addEventListener("storage", function(e) {
+      if (e.key === "driverDeliveries" || e.key === "foodListings") renderDriverDeliveries();
+    });
+
+    // Listen for a custom event from the role selection page to reset all data
+    window.addEventListener("message", function(event) {
+      if (event.data === "reset-all-hungerbridge") {
+        localStorage.removeItem("driverDeliveries");
+        renderDriverDeliveries();
+      }
+    });
+  </script>
+</body>
+</html>

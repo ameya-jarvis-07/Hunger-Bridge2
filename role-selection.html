@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hunger Bridge - Role Selection</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .btn-reset { background:#dc2626; color:white; padding:6px 12px; border:none; border-radius:6px; cursor:pointer; margin:10px; }
+    .btn-reset:hover { opacity:0.9; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="role-selection" class="min-h-screen flex flex-col">
+    <header class="bg-white shadow-md flex justify-between items-center px-6 py-4">
+      <h1 class="text-2xl font-bold text-blue-700 text-centeralign">🍽 Hunger Bridge</h1>      
+      <button id="btn-reset-db" class="btn-reset">Reset Database</button>
+    </header>
+    <section class="relative bg-white">
+      <div class="max-w-7xl mx-auto px-6 py-12 text-center">
+        <h2 class="text-4xl font-extrabold mb-4">Together Against Food Waste</h2>
+        <p class="text-gray-600 max-w-2xl mx-auto">
+          Restaurants, NGOs, and Citizens united to reduce food waste and fight hunger.
+        </p>
+      </div>
+    </section>
+    <section class="max-w-7xl mx-auto px-6 py-12 grid md:grid-cols-4 gap-8">
+      <div class="bg-white rounded-xl shadow-md p-6 text-center">
+        <h3 class="text-xl font-semibold mb-2">Restaurant</h3>
+        <a href="restaurant.html" class="bg-yellow-500 text-white px-6 py-2 rounded-lg font-bold inline-block">I'm a Restaurant</a>
+      </div>
+      <div class="bg-white rounded-xl shadow-md p-6 text-center">
+        <h3 class="text-xl font-semibold mb-2">NGO / Food Bank</h3>
+        <a href="ngo.html" class="bg-green-600 text-white px-6 py-2 rounded-lg font-bold inline-block">I'm an NGO</a>
+      </div>
+      <div class="bg-white rounded-xl shadow-md p-6 text-center">
+        <h3 class="text-xl font-semibold mb-2">Citizen</h3>
+        <a href="citizen.html" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold inline-block">I'm a Citizen</a>
+      </div>
+      <div class="bg-white rounded-xl shadow-md p-6 text-center">
+        <h3 class="text-xl font-semibold mb-2">Driver</h3>
+        <a href="driver.html" class="bg-orange-400 text-white px-6 py-2 rounded-lg font-bold inline-block">I'm a Driver</a>
+      </div>
+    </section>
+  </div>
+  <script>
+    document.getElementById("btn-reset-db").addEventListener("click", () => {
+      if (confirm("Reset all data?")) {
+        localStorage.removeItem("foodListings");
+        localStorage.removeItem("suggestions");
+        localStorage.removeItem("driverDeliveries");
+        window.postMessage("reset-all-hungerbridge", "*");
+        alert("Database reset!");
+      }
+    });
+  </script>
+</body>
+</html>

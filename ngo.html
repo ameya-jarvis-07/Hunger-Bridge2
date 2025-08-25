@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NGO - Hunger Bridge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .login-card { max-width:400px; margin:3rem auto; background:white; padding:2rem; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+    .login-card input { width:100%; padding:10px; margin:8px 0; border:1px solid #ccc; border-radius:6px; }
+    .login-card button { width:100%; background:#2563eb; color:white; padding:10px; margin-top:12px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; }
+    .login-card button:hover { opacity:0.9; }
+    .input-error { border-color: #dc2626 !important; box-shadow: 0 0 0 1.5px #dc2626; }
+    .error-message { color: #dc2626; font-size: 14px; margin-top: -4px; margin-bottom: 8px; text-align: left; padding-left: 2px; min-height: 18px; }
+  </style>
+</head>
+<body class="bg-gray-50">
+  <div id="charity-login">
+    <div class="login-card">
+      <h2 class="text-2xl font-bold mb-4 text-center">NGO Login</h2>
+      <input id="ngo-name" type="text" placeholder="NGO Name" required>
+      <input id="ngo-address" type="text" placeholder="Address" required>
+      <input id="ngo-contact" type="text" placeholder="Contact No." required>
+      <button id="ngo-login-btn">Continue</button>
+    </div>
+  </div>
+  <div id="charity-dashboard" class="hidden">
+    <header style="background:#2980b9;color:white;text-align:center;padding:20px;">
+      <h1>🤝 Charity / NGO Dashboard</h1>
+      <p id="ngo-user-info" class="mt-2"></p>
+    </header>
+    <div class="container p-6">
+      <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+        <h2 class="text-lg font-semibold mb-3">Available Food Listings</h2>
+        <ul id="ngo-listings"></ul>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+        <h2 class="text-lg font-semibold mb-3">My Deliveries</h2>
+        <ul id="ngo-claimed"></ul>
+      </div>
+      <div class="bg-white p-6 rounded-xl shadow-md">
+        <h2 class="text-lg font-semibold mb-3">Citizen Suggestions</h2>
+        <ul id="ngo-suggestions"></ul>
+      </div>
+    </div>
+  </div>
+  <script>
+    // --- Validation helpers ---
+    function showError(inputId, message) {
+      const input = document.getElementById(inputId);
+      input.classList.add("input-error");
+      let err = input.nextElementSibling;
+      if (!err || !err.classList.contains("error-message")) {
+        err = document.createElement("div");
+        err.className = "error-message";
+        input.parentNode.insertBefore(err, input.nextSibling);
+      }
+      err.textContent = message;
+    }
+    function clearError(inputId) {
+      const input = document.getElementById(inputId);
+      input.classList.remove("input-error");
+      let err = input.nextElementSibling;
+      if (err && err.classList.contains("error-message")) {
+        err.textContent = "";
+      }
+    }
+    ["ngo-name", "ngo-address", "ngo-contact"].forEach(id => {
+      document.getElementById(id).addEventListener("input", () => clearError(id));
+    });
+
+    // --- State ---
+    let currentUser = {};
+    let foodListings = [];
+    let suggestions = [];
+
+    // --- For alert tracking ---
+    let lastFoodCount = 0;
+    let lastSuggestionCount = 0;
+
+    // --- Login ---
+    document.getElementById("ngo-login-btn").addEventListener("click", () => {
+      let valid = true;
+      const name = document.getElementById("ngo-name").value.trim();
+      const address = document.getElementById("ngo-address").value.trim();
+      const contact = document.getElementById("ngo-contact").value.trim();
+      if (!name) { showError("ngo-name", "Please fill in NGO Name."); valid = false; }
+      if (!address) { showError("ngo-address", "Please fill in Address."); valid = false; }
+      if (!contact) { showError("ngo-contact", "Please fill in Contact No."); valid = false; }
+      if (!valid) return;
+      currentUser = { name, address, contact, type: "charity" };
+      document.getElementById("ngo-user-info").textContent = `${currentUser.name}, ${currentUser.address}, ${currentUser.contact}`;
+      document.getElementById("charity-login").classList.add("hidden");
+      document.getElementById("charity-dashboard").classList.remove("hidden");
+      loadData();
+      lastFoodCount = foodListings.filter(f => f.status === "available").length;
+      lastSuggestionCount = suggestions.length;
+      renderNGOListings();
+      renderNGOClaimed();
+      renderSuggestions();
+    });
+
+    // --- Data loading ---
+    function loadData() {
+      foodListings = JSON.parse(localStorage.getItem("foodListings") || "[]");
+      suggestions = JSON.parse(localStorage.getItem("suggestions") || "[]");
+    }
+
+    // --- Render available food ---
+    function renderNGOListings() {
+      loadData();
+      const ul = document.getElementById("ngo-listings");
+      ul.innerHTML = "";
+      foodListings
+        .map((f, idx) => ({...f, idx}))
+        .filter(f => f.status === "available")
+        .forEach(f => {
+          const li = document.createElement("li");
+          li.className = "flex justify-between items-center border-b py-2";
+          li.innerHTML = `<span>${f.qty} ${f.unit || "kg"} ${f.item} (by ${f.owner})</span>`;
+          const btn = document.createElement("button");
+          btn.textContent = "✅ Claim";
+          btn.className = "bg-green-600 hover:bg-green-700 text-white font-bold px-3 py-1 rounded";
+          btn.onclick = () => claimFood(f.idx);
+          li.appendChild(btn);
+          ul.appendChild(li);
+        });
+    }
+
+    // --- Render claimed/delivered food ---
+    function renderNGOClaimed() {
+      loadData();
+      const ul = document.getElementById("ngo-claimed");
+      ul.innerHTML = "";
+      foodListings
+        .filter(f => f.status === "claimed" && f.claimedBy === currentUser.name)
+        .forEach(f => {
+          const li = document.createElement("li");
+          li.textContent = `${f.qty} ${f.unit || "kg"} ${f.item} (Claimed)`;
+          ul.appendChild(li);
+        });
+    }
+
+    // --- Render citizen suggestions ---
+    function renderSuggestions() {
+      loadData();
+      const ulNGO = document.getElementById("ngo-suggestions");
+      ulNGO.innerHTML = "";
+      suggestions.forEach(s => {
+        const li = document.createElement("li");
+        li.textContent = `${s.name} - ${s.location}`;
+        ulNGO.appendChild(li);
+      });
+    }
+
+    // --- Claim food logic ---
+    function claimFood(foodIndex) {
+      // Reload to get latest
+      foodListings = JSON.parse(localStorage.getItem("foodListings") || "[]");
+      // Mark food as claimed and by whom
+      foodListings[foodIndex].status = "claimed";
+      foodListings[foodIndex].claimedBy = currentUser.name;
+      foodListings[foodIndex].claimedByAddress = currentUser.address;
+      localStorage.setItem("foodListings", JSON.stringify(foodListings));
+
+      // Prepare delivery data for driver
+      let deliveries = JSON.parse(localStorage.getItem("driverDeliveries") || "[]");
+      const food = foodListings[foodIndex];
+      deliveries.push({
+        pickup: food.owner, // Restaurant or Citizen name
+        food: `${food.qty} ${food.unit} ${food.item}`,
+        deliverTo: `${currentUser.name}, ${currentUser.address}`
+      });
+      localStorage.setItem("driverDeliveries", JSON.stringify(deliveries));
+
+      // Update UI
+      renderNGOListings();
+      renderNGOClaimed();
+    }
+
+    // --- Listen for changes in foodListings and suggestions (real-time alerts) ---
+    window.addEventListener("storage", function(e) {
+      if (document.getElementById("charity-dashboard").classList.contains("hidden")) return;
+      if (e.key === "foodListings") {
+        const prevCount = lastFoodCount;
+        loadData();
+        const newCount = foodListings.filter(f => f.status === "available").length;
+        if (newCount > prevCount) {
+          alert("New Food Available");
+        }
+        lastFoodCount = newCount;
+        renderNGOListings();
+        renderNGOClaimed();
+      }
+      if (e.key === "suggestions") {
+        const prevCount = lastSuggestionCount;
+        loadData();
+        const newCount = suggestions.length;
+        if (newCount > prevCount) {
+          alert("New Suggestion Available");
+        }
+        lastSuggestionCount = newCount;
+        renderSuggestions();
+      }
+    });
+
+    // --- Also poll every 2 seconds in case storage event is missed (optional but robust) ---
+    setInterval(() => {
+      if (document.getElementById("charity-dashboard").classList.contains("hidden")) return;
+      loadData();
+      const newFoodCount = foodListings.filter(f => f.status === "available").length;
+      if (newFoodCount > lastFoodCount) {
+        alert("New Food Available");
+      }
+      lastFoodCount = newFoodCount;
+      const newSuggestionCount = suggestions.length;
+      if (newSuggestionCount > lastSuggestionCount) {
+        alert("New Suggestion Available");
+      }
+      lastSuggestionCount = newSuggestionCount;
+    }, 2000);
+  </script>
+</body>
+</html>
